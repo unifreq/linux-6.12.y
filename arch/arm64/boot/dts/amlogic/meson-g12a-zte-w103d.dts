@@ -22,7 +22,7 @@
 		compatible = "pwm-clock";
 		#clock-cells = <0>;
 		clock-frequency = <32768>;
-		pwms = <&pwm_ef 0 30518 0>; /* period: 1s / 32768Hz = 30518 ns */
+		pwms = <&pwm_ef 0 30541 0>; /* period: 30541 ns (24MHz / 733 = 32742Hz) */
 	};
 
 	/* 2. Define power reset sequence for WiFi (pull up GPIOX_7 before SDIO scan) */
@@ -45,8 +45,8 @@
 
 	bus-width = <4>;
 	cap-sd-highspeed;
-	sd-uhs-sdr50;
-	max-frequency = <100000000>;
+	sd-uhs-sdr25;
+	max-frequency = <50000000>; /* limit to 50MHz for SDIO signal stability */
 	non-removable;
 	disable-wp;
 
@@ -73,8 +73,6 @@
 /* 4. Enable and configure UART_A interface for Bluetooth connection */
 &uart_A {
 	status = "okay";
-	pinctrl-0 = <&uart_a_pins>, <&uart_a_cts_rts_pins>;
-	pinctrl-names = "default";
 	uart-has-rtscts; /* Hardware flow control */
 
 	/* Bluetooth driver child node */
@@ -83,6 +81,13 @@
 		/* Reset/Enable pin for BT: GPIOX_18 */
 		reset-gpios = <&gpio GPIOX_18 GPIO_ACTIVE_LOW>;
 		vcc-supply = <&vcc_3v3>;
+
+		clocks = <&wifi32k>;
+		clock-names = "osc";
+
+		pinctrl-names = "default", "runtime";
+		pinctrl-0 = <&uart_a_pins>, <&uart_a_cts_rts_pins>;
+		pinctrl-1 = <&uart_a_pins>, <&uart_a_cts_rts_pins>;
 	};
 };
 
