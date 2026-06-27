@@ -1,0 +1,94 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2018 Amlogic, Inc. All rights reserved.
+ * Copyright (c) 2026 ZTE w103d
+ */
+
+/dts-v1/;
+
+#include "meson-g12a-u200.dts"
+
+/ {
+	model = "ZTE w103d";
+	compatible = "zte,w103d", "amlogic,g12a";
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x0 0x0 0x80000000>;
+	};
+
+	/* 1. Generate standard 32.768kHz clock for WiFi/BT via PWM_E channel */
+	wifi32k: wifi32k {
+		compatible = "pwm-clock";
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		pwms = <&pwm_ef 0 30518 0>; /* period: 1s / 32768Hz = 30518 ns */
+	};
+
+	/* 2. Define power reset sequence for WiFi (pull up GPIOX_7 before SDIO scan) */
+	sdio_pwrseq: sdio-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		reset-gpios = <&gpio GPIOX_7 GPIO_ACTIVE_LOW>;
+		clocks = <&wifi32k>;
+		clock-names = "ext_clock";
+	};
+};
+
+/* 3. Enable and configure SDIO interface for WiFi */
+&sd_emmc_a {
+	status = "okay";
+	pinctrl-0 = <&sdio_pins>;
+	pinctrl-1 = <&sdio_clk_gate_pins>;
+	pinctrl-names = "default", "clk-gate";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	bus-width = <4>;
+	cap-sd-highspeed;
+	sd-uhs-sdr50;
+	max-frequency = <100000000>;
+	non-removable;
+	disable-wp;
+
+	/* Keep power during suspend to allow WiFi wake up */
+	keep-power-in-suspend;
+
+	/* Associate power reset sequence controller */
+	mmc-pwrseq = <&sdio_pwrseq>;
+
+	vmmc-supply = <&vcc_3v3>;
+	vqmmc-supply = <&vcc_1v8>;
+
+	/* WiFi driver child node */
+	wifi@1 {
+		compatible = "mediatek,mt7663s", "mediatek,mt7661s";
+		reg = <1>;
+		/* Out-of-band wake/interrupt pin for WiFi */
+		interrupt-parent = <&gpio>;
+		interrupts = <GPIOX_8 IRQ_TYPE_LEVEL_LOW>;
+		interrupt-names = "host-wake";
+	};
+};
+
+/* 4. Enable and configure UART_A interface for Bluetooth connection */
+&uart_A {
+	status = "okay";
+	pinctrl-0 = <&uart_a_pins>, <&uart_a_cts_rts_pins>;
+	pinctrl-names = "default";
+	uart-has-rtscts; /* Hardware flow control */
+
+	/* Bluetooth driver child node */
+	bluetooth {
+		compatible = "mediatek,mt7663u-bluetooth", "mediatek,mt7668u-bluetooth";
+		/* Reset/Enable pin for BT: GPIOX_18 */
+		reset-gpios = <&gpio GPIOX_18 GPIO_ACTIVE_LOW>;
+		vcc-supply = <&vcc_3v3>;
+	};
+};
+
+/* 5. Enable PWMEE_EF controller for outputting 32kHz clock */
+&pwm_ef {
+	status = "okay";
+	pinctrl-0 = <&pwm_e_pins>;
+	pinctrl-names = "default";
+};
