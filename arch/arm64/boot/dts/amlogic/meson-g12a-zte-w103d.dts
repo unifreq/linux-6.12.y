@@ -22,7 +22,7 @@
 		compatible = "pwm-clock";
 		#clock-cells = <0>;
 		clock-frequency = <32768>;
-		pwms = <&pwm_ef 0 30541 0>; /* period: 30541 ns (24MHz / 733 = 32742Hz) */
+		pwms = <&pwm_ef 0 30518 0>; /* 32768Hz: NSEC_PER_SEC / 32768 = 30518ns */
 	};
 
 	/* 2. Define power reset sequence for WiFi (pull up GPIOX_7 before SDIO scan) */
