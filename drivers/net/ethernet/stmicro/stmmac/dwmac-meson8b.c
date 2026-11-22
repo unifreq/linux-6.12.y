@@ -352,6 +352,11 @@ static int meson8b_init_rgmii_delays(struct meson8b_dwmac *dwmac)
 					PRG_ETH0_INVERT_RXCLK,
 					PRG_ETH0_INVERT_RXCLK);
 
+	/* GXLX4 W152D requires the RX clock adjustment in RMII mode. */
+	if (dwmac->phy_mode == PHY_INTERFACE_MODE_RMII &&
+	    of_machine_is_compatible("amlogic,gxlx4-s905l4-w150d"))
+		cfg_rxclk_dly = BIT(19);
+
 	meson8b_dwmac_mask_bits(dwmac, PRG_ETH1, PRG_ETH1_CFG_RXCLK_DLY,
 				cfg_rxclk_dly);
 

@@ -68,3 +68,15 @@ obj-$(CONFIG_USBIP_CORE)	+= usbip/
 obj-$(CONFIG_TYPEC)		+= typec/
 
 obj-$(CONFIG_USB_ROLE_SWITCH)	+= roles/
+obj-$(CONFIG_AMLOGIC_CRG) += crgdrdphy/
+obj-$(CONFIG_AMLOGIC_CRG) += usb_main.o
+obj-$(CONFIG_AMLOGIC_CRG) += xhci_amlogic/
+obj-$(CONFIG_AMLOGIC_CRG) += crg/
+obj-$(CONFIG_AMLOGIC_CRG) += usb2phy/
+obj-$(CONFIG_AMLOGIC_CRG) += bc/
+obj-$(CONFIG_AMLOGIC_CRG) += cc/
+obj-$(CONFIG_AMLOGIC_CRG) += phy/
+obj-$(CONFIG_AMLOGIC_CRG) += usbotg/
+obj-$(CONFIG_AMLOGIC_CRG) += usbc2phy/
+obj-$(CONFIG_AMLOGIC_CRG) += usb3v2phy/
+obj-$(CONFIG_AMLOGIC_CRG) += usb3v3phy/

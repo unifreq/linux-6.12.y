@@ -25,6 +25,7 @@ struct meson_clk_dualdiv_data {
 	struct parm m2;
 	struct parm dual;
 	const struct meson_clk_dualdiv_param *table;
+	unsigned long saved_rate;
 };
 
 extern const struct clk_ops meson_clk_dualdiv_ops;

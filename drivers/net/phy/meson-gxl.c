@@ -11,6 +11,7 @@
 #include <linux/mii.h>
 #include <linux/ethtool.h>
 #include <linux/phy.h>
+#include <linux/of.h>
 #include <linux/netdevice.h>
 #include <linux/bitfield.h>
 #include <linux/smscphy.h>
@@ -199,6 +200,31 @@ read_status_continue:
 	return genphy_read_status(phydev);
 }
 
+static int w152d_g12a_phy_config_init(struct phy_device *phydev)
+{
+	/* PHY test-register sequence from the stock W152D enet_type=10 path. */
+	static const struct { u8 reg; u16 value; } sequence[] = {
+		{ 20, 0 }, { 20, 0x400 }, { 20, 0 }, { 20, 0x400 },
+		{ 23, 11 }, { 20, 0x4418 },
+		{ 20, 0 }, { 20, 0x400 }, { 20, 0 }, { 20, 0x400 },
+		{ 23, 0x1000 }, { 20, 0x4413 },
+		{ 20, 0 }, { 20, 0x400 }, { 20, 0 }, { 20, 0x400 },
+		{ 23, 0x8406 }, { 20, 0x4416 },
+		{ 20, 0 }, { 20, 0x400 }, { 20, 0 }, { 20, 0x400 },
+		{ 23, 0x2408 }, { 20, 0x4415 }, { 20, 0 },
+	};
+	int i, ret;
+
+	if (!of_machine_is_compatible("amlogic,gxlx4-s905l4-w150d"))
+		return smsc_phy_config_init(phydev);
+	for (i = 0; i < ARRAY_SIZE(sequence); i++) {
+		ret = phy_write(phydev, sequence[i].reg, sequence[i].value);
+		if (ret < 0)
+			return ret;
+	}
+	return phy_restart_aneg(phydev);
+}
+
 static struct phy_driver meson_gxl_phy[] = {
 	{
 		PHY_ID_MATCH_EXACT(0x01814400),
@@ -220,7 +246,7 @@ static struct phy_driver meson_gxl_phy[] = {
 		/* PHY_BASIC_FEATURES */
 		.flags		= PHY_IS_INTERNAL,
 		.probe		= smsc_phy_probe,
-		.config_init	= smsc_phy_config_init,
+		.config_init	= w152d_g12a_phy_config_init,
 		.soft_reset     = genphy_soft_reset,
 		.read_status	= lan87xx_read_status,
 		.config_intr	= smsc_phy_config_intr,

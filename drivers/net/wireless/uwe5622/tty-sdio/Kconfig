@@ -1,0 +1,17 @@
+config TTY_OVERY_SDIO
+	tristate "Spard TTY Overy SDIO Driver"
+	help
+	  Spard tty overy sdio driver.
+
+config TTY_OVERY_SDIO_BT_VENDOR_INIT
+	bool "In-kernel Bluetooth vendor initialisation (PSKEY/RF)"
+	depends on TTY_OVERY_SDIO
+	default y
+	help
+	  Configure the UWE5622 Bluetooth core from the kernel when rfkill
+	  powers it on: load bt_configure_pskey.ini / bt_configure_rf.ini
+	  through the firmware loader and send the vendor PSKEY, RF and
+	  enable commands. Stock BlueZ (btattach -B /dev/ttyBT0 -P h4) is
+	  then enough to bring up hci0; the closed-source hciattach_opi is
+	  not needed. Can be turned off at runtime with the sprdbt_tty
+	  module parameter vendor_init=0 to keep using the vendor tool.

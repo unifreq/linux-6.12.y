@@ -181,3 +181,4 @@ meson-sm1-khadas-vim3l-ts050-dtbs	:= meson-sm1-khadas-vim3l.dtb meson-khadas-vim
 # Experimental
 dtb-$(CONFIG_ARCH_MESON) += meson-gxbb-odroidc2-hifishield.dtb
 dtb-$(CONFIG_ARCH_MESON) += meson-gxbb-odroidc2-hifishield2.dtb
+dtb-$(CONFIG_ARCH_MESON) += meson-gxlx4-w152d.dtb
