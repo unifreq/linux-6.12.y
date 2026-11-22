@@ -15,6 +15,8 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/of.h>
+
 #include "sprdwl.h"
 #include "npi.h"
 #include "cfg80211.h"
@@ -1089,6 +1091,23 @@ static struct notifier_block sprdwl_inet6addr_cb = {
 
 #if IS_ENABLED(CONFIG_SUNXI_ADDR_MGT)
 extern int get_custom_mac_address(int fmt, char *name, char *addr);
+
+static void sprdwl_get_sunxi_mac(u8 *addr)
+{
+	struct device_node *node;
+	typeof(&get_custom_mac_address) get_addr;
+
+	node = of_find_compatible_node(NULL, NULL, "allwinner,sunxi-addr_mgt");
+	if (!node)
+		return;
+	of_node_put(node);
+
+	get_addr = symbol_request(get_custom_mac_address);
+	if (get_addr) {
+		get_addr(1, "wifi", (char *)addr);
+		symbol_put(get_custom_mac_address);
+	}
+}
 #endif
 static void sprdwl_set_mac_addr(struct sprdwl_vif *vif, u8 *pending_addr,
 				u8 *addr)
@@ -1106,7 +1125,7 @@ static void sprdwl_set_mac_addr(struct sprdwl_vif *vif, u8 *pending_addr,
 		return;
 	}
 #if IS_ENABLED(CONFIG_SUNXI_ADDR_MGT)
-	get_custom_mac_address(1, "wifi", custom_mac);
+	sprdwl_get_sunxi_mac(custom_mac);
 #endif
 
 	if (is_valid_ether_addr(custom_mac)) {

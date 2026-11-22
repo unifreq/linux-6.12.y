@@ -259,10 +259,9 @@ int sprdwl_cmd_init(void)
 #else
 	cmd->wake_lock = wakeup_source_register(NULL,"Wi-Fi_cmd_wakelock");
 #endif
-	if (!cmd->wake_lock) {
-		wl_err("%s wakeup source register error.\n", __func__);
-		return -EINVAL;
-	}
+	/* A kernel without CONFIG_PM_SLEEP has no wakeup sources. */
+	if (IS_ENABLED(CONFIG_PM_SLEEP) && !cmd->wake_lock)
+		wl_warn("%s could not register the command wakeup source\n", __func__);
 
 #ifdef CP2_RESET_SUPPORT
 	if (atomic_read(&cmd->refcnt) >= SPRDWL_CMD_EXIT_VAL)
@@ -355,7 +354,8 @@ static int sprdwl_cmd_lock(struct sprdwl_cmd *cmd)
 	}
 	mutex_lock(&cmd->cmd_lock);
 	if (intf->priv->is_suspending == 0)
-		__pm_stay_awake(cmd->wake_lock);
+		if (cmd->wake_lock)
+			__pm_stay_awake(cmd->wake_lock);
 
 #ifdef UNISOC_WIFI_PS
 	if (SPRDWL_PS_SUSPENDED == intf->suspend_mode) {
@@ -382,7 +382,8 @@ static void sprdwl_cmd_unlock(struct sprdwl_cmd *cmd)
 	mutex_unlock(&cmd->cmd_lock);
 	atomic_dec(&cmd->refcnt);
 	if (intf->priv->is_suspending == 0)
-		__pm_relax(cmd->wake_lock);
+		if (cmd->wake_lock)
+			__pm_relax(cmd->wake_lock);
 	if (intf->priv->is_suspending == 1)
 		intf->priv->is_suspending = 0;
 }
