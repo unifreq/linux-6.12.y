@@ -96,17 +96,16 @@ static int sclk_div_bestdiv(struct clk_hw *hw, unsigned long rate,
 	return bestdiv;
 }
 
-static int sclk_div_determine_rate(struct clk_hw *hw,
-				   struct clk_rate_request *req)
+static long sclk_div_round_rate(struct clk_hw *hw, unsigned long rate,
+				unsigned long *prate)
 {
 	struct clk_regmap *clk = to_clk_regmap(hw);
 	struct meson_sclk_div_data *sclk = meson_sclk_div_data(clk);
 	int div;
 
-	div = sclk_div_bestdiv(hw, req->rate, &req->best_parent_rate, sclk);
-	req->rate = DIV_ROUND_UP_ULL((u64)req->best_parent_rate, div);
+	div = sclk_div_bestdiv(hw, rate, prate, sclk);
 
-	return 0;
+	return DIV_ROUND_UP_ULL((u64)*prate, div);
 }
 
 static void sclk_apply_ratio(struct clk_regmap *clk,
@@ -203,6 +202,9 @@ static void sclk_div_disable(struct clk_hw *hw)
 	struct clk_regmap *clk = to_clk_regmap(hw);
 	struct meson_sclk_div_data *sclk = meson_sclk_div_data(clk);
 
+	if (bypass_clk_disable)
+		return;
+
 	meson_parm_write(clk->map, &sclk->div, 0);
 }
 
@@ -238,7 +240,7 @@ static int sclk_div_init(struct clk_hw *hw)
 
 const struct clk_ops meson_sclk_div_ops = {
 	.recalc_rate	= sclk_div_recalc_rate,
-	.determine_rate	= sclk_div_determine_rate,
+	.round_rate	= sclk_div_round_rate,
 	.set_rate	= sclk_div_set_rate,
 	.enable		= sclk_div_enable,
 	.disable	= sclk_div_disable,
@@ -247,9 +249,8 @@ const struct clk_ops meson_sclk_div_ops = {
 	.set_duty_cycle = sclk_div_set_duty_cycle,
 	.init		= sclk_div_init,
 };
-EXPORT_SYMBOL_NS_GPL(meson_sclk_div_ops, CLK_MESON);
+EXPORT_SYMBOL_GPL(meson_sclk_div_ops);
 
 MODULE_DESCRIPTION("Amlogic Sample divider driver");
 MODULE_AUTHOR("Jerome Brunet <jbrunet@baylibre.com>");
-MODULE_LICENSE("GPL");
-MODULE_IMPORT_NS(CLK_MESON);
+MODULE_LICENSE("GPL v2");

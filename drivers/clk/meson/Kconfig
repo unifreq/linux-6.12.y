@@ -204,3 +204,21 @@ config COMMON_CLK_S4_PERIPHERALS
 	  Support for the peripherals clock controller on Amlogic S805X2 and S905Y4
 	  devices, AKA S4. Say Y if you want S4 peripherals clock controller to work.
 endmenu
+
+
+
+config COMMON_CLK_GXLX4
+	bool "Amlogic GXLX4 clock controller"
+	depends on ARCH_MESON
+	select COMMON_CLK_MESON_REGMAP
+	select COMMON_CLK_MESON_PLL
+	select COMMON_CLK_MESON_DUALDIV
+	select COMMON_CLK_MESON_MPLL
+	select COMMON_CLK_MESON_PHASE
+	select COMMON_CLK_MESON_SCLK_DIV
+	select COMMON_CLK_MESON_VID_PLL_DIV
+	select COMMON_CLK_MESON_CPU_DYNDIV
+	select COMMON_CLK_MESON_CLKC_UTILS
+	select REGMAP_MMIO
+	help
+	  Support the clock controller on Amlogic GXLX4 (S905L4).
