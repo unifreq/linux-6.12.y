@@ -3,6 +3,12 @@
 # GPIO infrastructure and drivers
 #
 
+config GPIO_W152D_AO
+	bool "W152D always-on GPIO for front-panel LEDs"
+	depends on ARCH_MESON && GPIOLIB
+	select GPIO_REGMAP
+	select MFD_SYSCON
+
 menuconfig GPIOLIB
 	bool "GPIO Support"
 	help
