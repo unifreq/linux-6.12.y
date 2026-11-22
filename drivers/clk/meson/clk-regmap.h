@@ -9,6 +9,10 @@
 
 #include <linux/clk-provider.h>
 #include <linux/regmap.h>
+#include <linux/platform_device.h>
+#include "clk-cpu-dyndiv.h"
+
+extern int bypass_clk_disable;
 
 /**
  * struct clk_regmap - regmap backed clock
@@ -17,7 +21,7 @@
  * @map:	pointer to the regmap structure controlling the clock
  * @data:	data specific to the clock type
  *
- * Clock which is controlled by regmap backed registers. The actual type of
+ * Clock which is controlled by regmap backed registers. The actual type
  * of the clock is controlled by the clock_ops and data.
  */
 struct clk_regmap {
@@ -26,10 +30,7 @@ struct clk_regmap {
 	void		*data;
 };
 
-static inline struct clk_regmap *to_clk_regmap(struct clk_hw *hw)
-{
-	return container_of(hw, struct clk_regmap, hw);
-}
+#define to_clk_regmap(_hw) container_of(_hw, struct clk_regmap, hw)
 
 /**
  * struct clk_regmap_gate_data - regmap backed gate specific data
@@ -44,7 +45,10 @@ static inline struct clk_regmap *to_clk_regmap(struct clk_hw *hw)
 struct clk_regmap_gate_data {
 	unsigned int	offset;
 	u8		bit_idx;
+	unsigned int	check_offset;
+	u8		check_bit;
 	u8		flags;
+	int		saved_is_enabled;
 };
 
 static inline struct clk_regmap_gate_data *
@@ -69,11 +73,19 @@ extern const struct clk_ops clk_regmap_gate_ro_ops;
  */
 struct clk_regmap_div_data {
 	unsigned int	offset;
+	unsigned int	smc_id;
 	u8		shift;
 	u8		width;
-	u8		flags;
+	u16		flags;
+	u8		secid;
 	const struct clk_div_table	*table;
+	u32		saved_divider;
 };
+
+/* gpu used pll needs to restore, and cpuclk/dsuclk used pll no need to restore.
+ * only 64-bit system validation
+ */
+#define CLK_DIVIDER_SECURE_IGNORE_RESTORE	BIT(8)
 
 static inline struct clk_regmap_div_data *
 clk_get_regmap_div_data(struct clk_regmap *clk)
@@ -83,7 +95,7 @@ clk_get_regmap_div_data(struct clk_regmap *clk)
 
 extern const struct clk_ops clk_regmap_divider_ops;
 extern const struct clk_ops clk_regmap_divider_ro_ops;
-
+extern const struct clk_ops clk_regmap_secure_v2_divider_ops;
 /**
  * struct clk_regmap_mux_data - regmap backed multiplexer clock specific data
  *
@@ -101,8 +113,12 @@ struct clk_regmap_mux_data {
 	unsigned int	offset;
 	u32		*table;
 	u32		mask;
+	u32		smc_id;
 	u8		shift;
 	u8		flags;
+	u8		secid;
+	u8		secid_rd;
+	u8		saved_parent;
 };
 
 static inline struct clk_regmap_mux_data *
@@ -134,4 +150,8 @@ struct clk_regmap _name = {						\
 
 #define MESON_PCLK_RO(_name, _reg, _bit, _pname)	\
 	__MESON_PCLK(_name, _reg, _bit, &clk_regmap_gate_ro_ops, _pname)
+
+struct regmap *meson_clk_regmap_resource(struct platform_device *pdev, struct device *dev,
+					unsigned int index);
+
 #endif /* __CLK_REGMAP_H */

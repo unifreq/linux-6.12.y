@@ -666,7 +666,7 @@ struct clk *clk_register_regmap_gate(struct device *dev, const char *name,
 					      reg, bit_idx, clk_gate_flags,   \
 					      lock)			      \
 	__devm_clk_hw_register_gate((dev), NULL, (name), NULL, NULL,	      \
-				    (parent_data), (flags), (reg), (bit_idx), \
+				    (parent_data), (flags), NULL, 0, (reg), (bit_idx), \
 				    (clk_gate_flags), (lock))
 
 void clk_unregister_gate(struct clk *clk);

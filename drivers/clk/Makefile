@@ -148,3 +148,5 @@ endif
 obj-y					+= xilinx/
 obj-$(CONFIG_ARCH_ZYNQ)			+= zynq/
 obj-$(CONFIG_COMMON_CLK_ZYNQMP)         += zynqmp/
+
+obj-$(CONFIG_COMMON_CLK_GXLX4) += w152d-usb-clock-probe.o w152d-usb3-phy-probe.o

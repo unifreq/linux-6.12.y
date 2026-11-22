@@ -12,6 +12,7 @@
 #include <linux/iopoll.h>
 #include <linux/mdio-mux.h>
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/phy.h>
 #include <linux/platform_device.h>
 
@@ -56,6 +57,7 @@ struct g12a_mdio_mux {
 	void __iomem *regs;
 	void *mux_handle;
 	struct clk *pll;
+	void __iomem *w152d_trim;
 };
 
 struct g12a_ephy_pll {
@@ -161,6 +163,24 @@ static int g12a_enable_internal_mdio(struct g12a_mdio_mux *priv)
 
 	/* Initialize ephy control */
 	writel(EPHY_G12A_ID, priv->regs + ETH_PHY_CNTL0);
+
+	if (priv->w152d_trim) {
+		u32 fuse = readl(priv->w152d_trim);
+		u32 analog = 0xa9860000;
+
+		/* The stock enet_type=10 internal PHY sequence. */
+		writel(0x74043, priv->regs + ETH_PHY_CNTL1);
+		mdelay(10);
+		writel(0x260, priv->regs + ETH_PHY_CNTL2);
+		if (fuse & BIT(24))
+			analog = 0x09060000 | (fuse & GENMASK(23, 20)) |
+				 (FIELD_GET(GENMASK(19, 16), fuse) << 28);
+		writel(analog, priv->regs + ETH_PLL_CTL3);
+		writel(0x4001, priv->regs + ETH_PLL_CTL6);
+		writel(0x10800000, priv->regs + ETH_PLL_CTL5);
+		writel(0x3623, priv->regs + ETH_PLL_CTL7);
+		return 0;
+	}
 
 	/* Make sure we get a 0 -> 1 transition on the enable bit */
 	value = FIELD_PREP(PHY_CNTL1_ST_MODE, 3) |
@@ -313,6 +333,12 @@ static int g12a_mdio_mux_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	platform_set_drvdata(pdev, priv);
+
+	if (of_machine_is_compatible("amlogic,gxlx4-s905l4-w150d")) {
+		priv->w152d_trim = devm_ioremap(dev, 0xfe010330, sizeof(u32));
+		if (!priv->w152d_trim)
+			return -ENOMEM;
+	}
 
 	priv->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(priv->regs))

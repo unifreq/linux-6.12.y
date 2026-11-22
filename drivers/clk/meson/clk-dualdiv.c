@@ -40,7 +40,11 @@ __dualdiv_param_to_rate(unsigned long parent_rate,
 	if (!p->dual)
 		return DIV_ROUND_CLOSEST(parent_rate, p->n1);
 
-	return DIV_ROUND_CLOSEST(parent_rate * (p->m1 + p->m2),
+	/*
+	 * parent_rate * (p->m1 + p->m2) is easy to overflow when parent_rate is 1Ghz in ARM32.
+	 * use DIV_ROUND_CLOSEST_ULL instead
+	 */
+	return DIV_ROUND_CLOSEST_ULL((u64)parent_rate * (p->m1 + p->m2),
 				 p->n1 * p->m1 + p->n2 * p->m2);
 }
 
@@ -86,23 +90,18 @@ __dualdiv_get_setting(unsigned long rate, unsigned long parent_rate,
 	return (struct meson_clk_dualdiv_param *)&table[best_i];
 }
 
-static int meson_clk_dualdiv_determine_rate(struct clk_hw *hw,
-					    struct clk_rate_request *req)
+static long meson_clk_dualdiv_round_rate(struct clk_hw *hw, unsigned long rate,
+					 unsigned long *parent_rate)
 {
 	struct clk_regmap *clk = to_clk_regmap(hw);
 	struct meson_clk_dualdiv_data *dualdiv = meson_clk_dualdiv_data(clk);
-	const struct meson_clk_dualdiv_param *setting;
+	const struct meson_clk_dualdiv_param *setting =
+		__dualdiv_get_setting(rate, *parent_rate, dualdiv);
 
-	setting = __dualdiv_get_setting(req->rate, req->best_parent_rate,
-					dualdiv);
-	if (setting)
-		req->rate = __dualdiv_param_to_rate(req->best_parent_rate,
-						    setting);
-	else
-		req->rate = meson_clk_dualdiv_recalc_rate(hw,
-							  req->best_parent_rate);
+	if (!setting)
+		return meson_clk_dualdiv_recalc_rate(hw, *parent_rate);
 
-	return 0;
+	return __dualdiv_param_to_rate(*parent_rate, setting);
 }
 
 static int meson_clk_dualdiv_set_rate(struct clk_hw *hw, unsigned long rate,
@@ -117,28 +116,58 @@ static int meson_clk_dualdiv_set_rate(struct clk_hw *hw, unsigned long rate,
 		return -EINVAL;
 
 	meson_parm_write(clk->map, &dualdiv->dual, setting->dual);
-	meson_parm_write(clk->map, &dualdiv->n1, setting->n1 - 1);
-	meson_parm_write(clk->map, &dualdiv->m1, setting->m1 - 1);
-	meson_parm_write(clk->map, &dualdiv->n2, setting->n2 - 1);
-	meson_parm_write(clk->map, &dualdiv->m2, setting->m2 - 1);
+	meson_parm_write(clk->map, &dualdiv->n1, setting->n1 ? setting->n1 - 1 : 0);
+	meson_parm_write(clk->map, &dualdiv->m1, setting->m1 ? setting->m1 - 1 : 0);
+	meson_parm_write(clk->map, &dualdiv->n2, setting->n2 ? setting->n2 - 1 : 0);
+	meson_parm_write(clk->map, &dualdiv->m2, setting->m2 ? setting->m2 - 1 : 0);
 
 	return 0;
 }
 
+static int meson_clk_dualdiv_save_context(struct clk_hw *hw)
+{
+	struct clk_regmap *clk = to_clk_regmap(hw);
+	struct meson_clk_dualdiv_data *dualdiv = meson_clk_dualdiv_data(clk);
+
+	dualdiv->saved_rate = meson_clk_dualdiv_recalc_rate(hw,
+		       clk_hw_get_rate(clk_hw_get_parent(hw)));
+
+	return 0;
+}
+
+static void meson_clk_dualdiv_restore_context(struct clk_hw *hw)
+{
+	struct clk_regmap *clk = to_clk_regmap(hw);
+	struct meson_clk_dualdiv_data *dualdiv = meson_clk_dualdiv_data(clk);
+	unsigned long parent_rate = clk_hw_get_rate(clk_hw_get_parent(hw));
+
+	/*
+	 * FIXME: If dualdiv clk is not configured, 32K table should not
+	 * be used to restore dualdiv clk.
+	 */
+	if (meson_clk_dualdiv_round_rate(hw, dualdiv->saved_rate, &parent_rate) !=
+	    dualdiv->saved_rate)
+		return;
+
+	meson_clk_dualdiv_set_rate(hw, dualdiv->saved_rate,
+				   clk_hw_get_rate(clk_hw_get_parent(hw)));
+}
+
 const struct clk_ops meson_clk_dualdiv_ops = {
 	.recalc_rate	= meson_clk_dualdiv_recalc_rate,
-	.determine_rate	= meson_clk_dualdiv_determine_rate,
+	.round_rate	= meson_clk_dualdiv_round_rate,
 	.set_rate	= meson_clk_dualdiv_set_rate,
+	.save_context	= meson_clk_dualdiv_save_context,
+	.restore_context = meson_clk_dualdiv_restore_context,
 };
-EXPORT_SYMBOL_NS_GPL(meson_clk_dualdiv_ops, CLK_MESON);
+EXPORT_SYMBOL_GPL(meson_clk_dualdiv_ops);
 
 const struct clk_ops meson_clk_dualdiv_ro_ops = {
 	.recalc_rate	= meson_clk_dualdiv_recalc_rate,
 };
-EXPORT_SYMBOL_NS_GPL(meson_clk_dualdiv_ro_ops, CLK_MESON);
+EXPORT_SYMBOL_GPL(meson_clk_dualdiv_ro_ops);
 
 MODULE_DESCRIPTION("Amlogic dual divider driver");
 MODULE_AUTHOR("Neil Armstrong <narmstrong@baylibre.com>");
 MODULE_AUTHOR("Jerome Brunet <jbrunet@baylibre.com>");
-MODULE_LICENSE("GPL");
-MODULE_IMPORT_NS(CLK_MESON);
+MODULE_LICENSE("GPL v2");

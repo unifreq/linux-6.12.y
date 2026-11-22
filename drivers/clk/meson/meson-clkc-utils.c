@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright (c) 2023 Neil Armstrong <neil.armstrong@linaro.org>
+ * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
  */
 
 #include <linux/of_device.h>
@@ -20,8 +20,6 @@ struct clk_hw *meson_clk_hw_get(struct of_phandle_args *clkspec, void *clk_hw_da
 
 	return data->hws[idx];
 }
-EXPORT_SYMBOL_NS_GPL(meson_clk_hw_get, CLK_MESON);
+EXPORT_SYMBOL_GPL(meson_clk_hw_get);
 
-MODULE_DESCRIPTION("Amlogic Clock Controller Utilities");
 MODULE_LICENSE("GPL");
-MODULE_IMPORT_NS(CLK_MESON);

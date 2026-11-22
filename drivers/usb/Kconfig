@@ -160,3 +160,36 @@ source "drivers/usb/typec/Kconfig"
 source "drivers/usb/roles/Kconfig"
 
 endif # USB_SUPPORT
+
+config AMLOGIC_CRG
+	bool "Amlogic CRG USB host and dual-role support"
+	depends on ARCH_MESON && USB
+
+config AMLOGIC_USBPHY
+	tristate "Amlogic USB PHY common"
+	depends on AMLOGIC_CRG
+	default y
+config AMLOGIC_USB2PHY
+	tristate "Amlogic USB2 PHY v2"
+	depends on AMLOGIC_CRG
+	default y
+config AMLOGIC_USB3PHY
+	tristate "Amlogic USB3 PHY"
+	depends on AMLOGIC_CRG
+	default y
+config AMLOGIC_USBPHYC2
+	tristate "Amlogic USB PHY C2 v2"
+	depends on AMLOGIC_CRG
+	default y
+config AMLOGIC_CC
+	tristate "Amlogic USB CC"
+	depends on AMLOGIC_CRG
+	default y
+config AMLOGIC_BC
+	tristate "Amlogic USB BC"
+	depends on AMLOGIC_CRG
+	default y
+config AMLOGIC_USB_OTG
+	tristate "Amlogic USB OTG"
+	depends on AMLOGIC_CRG
+	default y

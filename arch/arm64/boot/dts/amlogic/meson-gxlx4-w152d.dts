@@ -1,0 +1,386 @@
+// SPDX-License-Identifier: GPL-2.0+
+
+/dts-v1/;
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+/ {
+	model = "ZTE W152D";
+	compatible = "amlogic,gxlx4-s905l4-w150d", "amlogic,gxlx4";
+	#address-cells = <2>;
+	#size-cells = <2>;
+	interrupt-parent = <&gic>;
+
+	aliases {
+		serial0 = &uart_b;
+	};
+
+	chosen {
+		stdout-path = "serial0:921600n8";
+	};
+
+	/* RAM range after the boot firmware's fixup. */
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x0 0x0 0x7f900000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* Keep the existing firmware and diagnostic carveouts out of the allocator. */
+		iotrace@4f00000 {
+			reg = <0x0 0x04f00000 0x0 0x100000>;
+			no-map;
+		};
+
+		secmon@5000000 {
+			reg = <0x0 0x05000000 0x0 0x3400000>;
+			no-map;
+		};
+
+		ramoops@8400000 {
+			reg = <0x0 0x08400000 0x0 0x100000>;
+			no-map;
+		};
+
+		uboot-log@11000000 {
+			reg = <0x0 0x11000000 0x0 0x40000>;
+			no-map;
+		};
+
+		firmware-framebuffer@7f000000 {
+			reg = <0x0 0x7f000000 0x0 0x800000>;
+			no-map;
+		};
+	};
+
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55";
+			reg = <0 0>;
+			enable-method = "psci";
+		};
+
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55";
+			reg = <0 1>;
+			enable-method = "psci";
+		};
+
+		cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55";
+			reg = <0 2>;
+			enable-method = "psci";
+		};
+
+		cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a55";
+			reg = <0 3>;
+			enable-method = "psci";
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
+	};
+
+	/* Preserve the working vendor GIC window for initial IRQ/timer bring-up. */
+	gic: interrupt-controller@fff01000 {
+		compatible = "arm,cortex-a15-gic", "arm,cortex-a9-gic";
+		#interrupt-cells = <3>;
+		#address-cells = <0>;
+		interrupt-controller;
+		reg = <0x0 0xfff01000 0x0 0x1000>,
+		      <0x0 0xfff02000 0x0 0x100>;
+		interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>;
+	};
+
+	xtal: clock-24000000 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <24000000>;
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		uart_b: serial@fe07a000 {
+			compatible = "amlogic,meson-g12a-uart";
+			reg = <0x0 0xfe07a000 0x0 0x18>;
+			interrupts = <GIC_SPI 169 IRQ_TYPE_EDGE_RISING>;
+			/* The pclk reference stands in for the firmware-enabled bus gate. */
+			clocks = <&xtal>, <&xtal>, <&xtal>;
+			clock-names = "xtal", "pclk", "baud";
+		};
+	};
+};
+
+&{/} {
+
+	/* The board clock rates rely on the corresponding gates being enabled
+	 * when the boot firmware hands over control.
+	 */
+	sys_clk: clock-166666000 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <166666000>;
+	};
+
+	fclk_div2: clock-1000000000 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <1000000000>;
+	};
+
+	fclk_50m: clock-50000000 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <50000000>;
+	};
+};
+
+&{/soc} {
+	ethernet@fe368000 {
+		compatible = "amlogic,meson-axg-dwmac", "snps,dwmac-4.00";
+		reg = <0x0 0xfe368000 0x0 0x12ec>,
+		      <0x0 0xfe364000 0x0 0x2c>;
+		interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "macirq";
+		clocks = <&sys_clk>, <&fclk_div2>, <&fclk_50m>;
+		clock-names = "stmmaceth", "clkin0", "clkin1";
+		rx-fifo-depth = <4096>;
+		tx-fifo-depth = <2048>;
+		phy-mode = "rmii";
+		phy-handle = <&phy8>;
+
+		mac_mdio: mdio {
+			compatible = "snps,dwmac-mdio";
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+	};
+
+	mdio-multiplexer@fe360000 {
+		compatible = "amlogic,g12a-mdio-mux";
+		reg = <0x0 0xfe360000 0x0 0xa4>;
+		clocks = <&sys_clk>, <&xtal>, <&fclk_50m>;
+		clock-names = "pclk", "clkin0", "clkin1";
+		mdio-parent-bus = <&mac_mdio>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		mdio@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			phy8: ethernet-phy@8 {
+				/* Let phylib read the ID over MDIO during this test. */
+				compatible = "ethernet-phy-ieee802.3-c22";
+				reg = <8>;
+				max-speed = <100>;
+				interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
+			};
+		};
+	};
+};
+
+&{/} {
+
+	usb-clock-166666000 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <166666000>;
+		clock-output-names = "w152d-usb-sys";
+	};
+
+	clock-250000000 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <250000000>;
+		clock-output-names = "w152d-usb-ref";
+	};
+};
+
+&{/soc} {
+	crg_clk: clock-controller@fe000048 {
+		compatible = "amlogic,w152d-crg-clock-probe";
+		reg = <0x0 0xfe000048 0x0 0x4>, <0x0 0xfe0001a0 0x0 0x4>;
+		#clock-cells = <1>;
+	};
+
+	usb3-phy@fe35a000 {
+		compatible = "amlogic,w152d-usb3-phy-probe";
+		reg = <0x0 0xfe35a000 0x0 0x184>, <0x0 0xfe002000 0x0 0x100>,
+		      <0x0 0xfe004184 0x0 0x8>,
+		      <0x0 0xfe358000 0x0 0x10>, <0x0 0xfe350000 0x0 0x8000>;
+		reg-names = "analog", "reset", "vbus-gpio", "usb2-companion", "crg";
+		clocks = <&crg_clk 0>, <&crg_clk 2>;
+		clock-names = "crg", "pipe";
+	};
+
+	usb@fe350000 {
+		compatible = "generic-xhci";
+		reg = <0x0 0xfe350000 0x0 0x8000>;
+		interrupts = <GIC_SPI 131 IRQ_TYPE_EDGE_RISING>;
+		clocks = <&crg_clk 0>;
+	};
+
+	usb2-hub@fe348000 {
+		compatible = "amlogic,w152d-usb2-hub-probe";
+		reg = <0x0 0xfe348000 0x0 0x10>, <0x0 0xfe004144 0x0 0x8>,
+		      <0x0 0xfe004204 0x0 0x8>, <0x0 0xfe002000 0x0 0x100>,
+		      <0x0 0xfe340000 0x0 0x8000>;
+		reg-names = "phy", "hub-reset-gpio", "port-enable-gpio", "reset", "crg";
+		clocks = <&crg_clk 1>;
+	};
+
+	usb@fe340000 {
+		compatible = "generic-xhci";
+		reg = <0x0 0xfe340000 0x0 0x8000>;
+		interrupts = <GIC_SPI 130 IRQ_TYPE_EDGE_RISING>;
+		clocks = <&crg_clk 1>;
+	};
+};
+
+&{/} {
+
+	sdio_bus_clk: sdio-clock-166666000 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <166666000>;
+	};
+
+	gp0_pll: clock-1152000000 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <1152000000>;
+	};
+
+	/* The boot script enables the rails before the kernel starts. */
+	sdio_vmmc: regulator-sdio-vmmc {
+		compatible = "regulator-fixed";
+		regulator-name = "sdio-vmmc";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+
+	sdio_vqmmc: regulator-sdio-vqmmc {
+		compatible = "regulator-fixed";
+		regulator-name = "sdio-vqmmc";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+	};
+};
+
+&{/soc} {
+	mmc@fe088000 {
+		compatible = "amlogic,meson-axg-mmc";
+		reg = <0x0 0xfe088000 0x0 0x1000>;
+		interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>;
+		/* Reuse the bus gate and pinmux from the boot handoff. */
+		clocks = <&sdio_bus_clk>, <&xtal>, <&gp0_pll>;
+		clock-names = "core", "clkin0", "clkin1";
+		vmmc-supply = <&sdio_vmmc>;
+		vqmmc-supply = <&sdio_vqmmc>;
+		bus-width = <4>;
+		max-frequency = <25000000>;
+		cap-sdio-irq;
+		non-removable;
+		no-mmc;
+		no-sd;
+	};
+};
+
+&{/} {
+
+	/* The UWE5622 build uses CONFIG_WCN_PARSE_DTS and needs this node. */
+	uwe-bsp {
+		compatible = "unisoc,uwe_bsp";
+		data-irq;
+	};
+};
+
+&{/soc} {
+	/* GXLX4 GPIO bank X input, output and direction registers. */
+	wifi-gpio@fe004100 {
+		compatible = "amlogic,w152d-wifi-gpio", "syscon";
+		reg = <0x0 0xfe004100 0x0 0xc>;
+	};
+};
+
+&{/soc/mmc@fe088000} {
+	/* Adopt the firmware's pins without writing a pinmux register. */
+	pinctrl-names = "default";
+	pinctrl-0 = <>;
+	max-frequency = <200000000>;
+	cap-sd-highspeed;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+};
+
+#include <dt-bindings/gpio/gpio.h>
+
+&{/soc} {
+	ao_gpio: gpio@fe004180 {
+		compatible = "amlogic,w152d-ao-gpio", "syscon";
+		reg = <0x0 0xfe004180 0x0 0xc>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		gpio-reserved-ranges = <0 4>, <6 1>, <8 1>, <10 2>;
+	};
+};
+
+&{/} {
+	leds {
+		compatible = "gpio-leds";
+
+		led-power-green {
+			label = "green:power";
+			gpios = <&ao_gpio 4 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led-power-red {
+			label = "red:power";
+			gpios = <&ao_gpio 5 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+
+		led-network-green {
+			label = "green:lan";
+			gpios = <&ao_gpio 9 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		led-network-red {
+			label = "red:lan";
+			gpios = <&ao_gpio 7 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+	};
+};

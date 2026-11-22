@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 # Wireless LAN device configuration
+source "drivers/net/wireless/uwe5622/Kconfig"
 #
 
 menuconfig WLAN
@@ -40,3 +41,6 @@ source "drivers/net/wireless/quantenna/Kconfig"
 source "drivers/net/wireless/virtual/Kconfig"
 
 endif # WLAN
+
+config AW_WIFI_DEVICE_UWE5622
+	bool

@@ -10,8 +10,8 @@
 #include <linux/bits.h>
 #include <linux/regmap.h>
 
-#define PMASK(width)			GENMASK(width - 1, 0)
-#define SETPMASK(width, shift)		GENMASK(shift + width - 1, shift)
+#define PMASK(width)			GENMASK((width) - 1, 0)
+#define SETPMASK(width, shift)		GENMASK((shift) + (width) - 1, shift)
 #define CLRPMASK(width, shift)		(~SETPMASK(width, shift))
 
 #define PARM_GET(width, shift, reg)					\
@@ -30,16 +30,26 @@ struct parm {
 static inline unsigned int meson_parm_read(struct regmap *map, struct parm *p)
 {
 	unsigned int val;
+	int ret;
 
-	regmap_read(map, p->reg_off, &val);
+	ret = regmap_read(map, p->reg_off, &val);
+	if (ret) {
+		pr_err("%s failed, ret = %d\n", __func__, ret);
+		return 0;
+	}
+
 	return PARM_GET(p->width, p->shift, val);
 }
 
 static inline void meson_parm_write(struct regmap *map, struct parm *p,
 				    unsigned int val)
 {
-	regmap_update_bits(map, p->reg_off, SETPMASK(p->width, p->shift),
-			   val << p->shift);
+	int ret;
+
+	ret = regmap_update_bits(map, p->reg_off, SETPMASK(p->width, p->shift),
+				 val << p->shift);
+	if (ret)
+		pr_err("meson_parm_write failed, ret = %d\n", ret);
 }
 
 #endif /* __MESON_PARM_H */

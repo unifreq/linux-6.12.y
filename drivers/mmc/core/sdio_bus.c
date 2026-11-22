@@ -186,6 +186,15 @@ static int sdio_bus_probe(struct device *dev)
 		ret = -ENOMEDIUM;
 	else
 		ret = sdio_set_block_size(func, 0);
+	/* The W152D WCN driver cycles the radio rail before registering. */
+	if (ret == -ETIMEDOUT && !strcmp(drv->name, "sdiohal") &&
+	    of_machine_is_compatible("amlogic,gxlx4-s905l4-w150d")) {
+		dev_info(dev, "W152D: reinitializing SDIO after power cycle\n");
+		ret = mmc_hw_reset(func->card);
+		if (!ret)
+			ret = sdio_set_block_size(func, 0);
+		dev_info(dev, "W152D: SDIO recovery result %d\n", ret);
+	}
 	sdio_release_host(func);
 	if (ret)
 		goto disable_runtimepm;

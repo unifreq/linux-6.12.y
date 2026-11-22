@@ -20,7 +20,9 @@ struct meson_clk_mpll_data {
 	struct parm misc;
 	const struct reg_sequence *init_regs;
 	unsigned int init_count;
+	spinlock_t *lock;				//
 	u8 flags;
+	unsigned long saved_rate;
 };
 
 #define CLK_MESON_MPLL_ROUND_CLOSEST	BIT(0)
