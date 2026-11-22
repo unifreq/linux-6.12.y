@@ -1,0 +1,4 @@
+menuconfig AMLOGIC_CRG_DRDPHY
+	tristate "Amlogic CRG DRD USB PHY support"
+	depends on ARCH_MESON || COMPILE_TEST
+	default y if ARCH_MESON
