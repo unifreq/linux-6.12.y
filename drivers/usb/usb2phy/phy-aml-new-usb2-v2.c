@@ -15,6 +15,7 @@
 #include <linux/delay.h>
 #include <linux/usb/phy.h>
 #include <linux/amlogic/usb-v2.h>
+#include "../usb_main.h"
 #include <linux/amlogic/usbtype.h>
 #include "../phy/phy-aml-new-usb-v2.h"
 
@@ -172,7 +173,7 @@ static void set_trim_initvalue
 	phy->phy_0xc_initvalue[port] = val;
 }
 
-void set_usb_pll(struct amlogic_usb_v2 *phy, void __iomem	*reg)
+static void set_usb_pll(struct amlogic_usb_v2 *phy, void __iomem	*reg)
 {
 	u32 val;
 

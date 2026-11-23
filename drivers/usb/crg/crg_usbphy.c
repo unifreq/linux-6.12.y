@@ -66,7 +66,7 @@ static void crg_set_device_mode_v2(struct platform_device *pdev,
 	writel(reg0.d32, u2p_aml_regs.u2p_r_v2[0]);
 }
 
-int crg_clk_enable_usb_v2(struct platform_device *pdev,
+static int crg_clk_enable_usb_v2(struct platform_device *pdev,
 			unsigned long usb_peri_reg, int controller_type)
 {
 	struct clk *usb_reset;
@@ -81,7 +81,7 @@ int crg_clk_enable_usb_v2(struct platform_device *pdev,
 	return 0;
 }
 
-void crg_clk_disable_usb_v2(struct platform_device *pdev,
+static void crg_clk_disable_usb_v2(struct platform_device *pdev,
 				unsigned long usb_peri_reg)
 {
 	struct clk *usb_reset;
@@ -93,7 +93,7 @@ void crg_clk_disable_usb_v2(struct platform_device *pdev,
 	clk_disable_unprepare(usb_reset);
 }
 
-int crg_clk_resume_usb_v2(struct platform_device *pdev,
+static int crg_clk_resume_usb_v2(struct platform_device *pdev,
 			unsigned long usb_peri_reg)
 {
 	struct clk *usb_reset;

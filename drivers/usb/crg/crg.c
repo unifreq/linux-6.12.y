@@ -30,6 +30,7 @@
 #include <linux/phy/phy.h>
 #include <linux/amlogic/cpu_version.h>
 #include "../xhci_amlogic/xhci-meson.h"
+#include "../usb_main.h"
 #include "../xhci_amlogic/xhci-plat-meson.h"
 //#include "crg_xhci.h"
 
@@ -63,7 +64,7 @@ static const struct aml_xhci_plat_priv crg_xhci_plat_priv = {
 };
 
 /* -------------------------------------------------------------------------- */
-void crg_set_mode(struct crg *crg, u32 mode)
+static void crg_set_mode(struct crg *crg, u32 mode)
 {
 	//TODO
 }
@@ -161,7 +162,7 @@ static int crg_core_get_phy(struct crg *crg)
 
 static struct property_entry	props[64];
 
-int crg_host_init(struct crg *crg)
+static int crg_host_init(struct crg *crg)
 {
 	//struct property_entry	props[64];
 	struct platform_device	*xhci;
@@ -411,7 +412,7 @@ err0:
 	return ret;
 }
 
-void crg_shutdown(struct platform_device *pdev)
+static void crg_shutdown(struct platform_device *pdev)
 {
 	struct crg     *crg = platform_get_drvdata(pdev);
 

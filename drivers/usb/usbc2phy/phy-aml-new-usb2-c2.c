@@ -15,6 +15,7 @@
 #include <linux/delay.h>
 #include <linux/usb/phy.h>
 #include <linux/amlogic/usb-v2.h>
+#include "../usb_main.h"
 #include <linux/amlogic/usbtype.h>
 #include "../phy/phy-aml-new-usb-v2.h"
 

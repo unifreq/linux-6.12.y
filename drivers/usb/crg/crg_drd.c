@@ -32,6 +32,8 @@
 #include <linux/amlogic/cpu_version.h>
 
 #include "../xhci_amlogic/xhci-meson.h"
+#include "../usb_main.h"
+#include "../phy/phy-aml-new-usb-v2.h"
 #include "../xhci_amlogic/xhci-plat-meson.h"
 //#include "crg_xhci.h"
 
