@@ -16,6 +16,7 @@
 #include <linux/usb/phy.h>
 //#include <linux/amlogic/power_ctrl.h>
 #include <linux/amlogic/usb-v2.h>
+#include "../usb_main.h"
 #include <linux/amlogic/usbtype.h>
 
 static int amlogic_usb2_m31_init(struct usb_phy *x)

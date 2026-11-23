@@ -26,6 +26,7 @@
 #endif
 
 #include "xhci-meson.h"
+#include "../usb_main.h"
 #include "xhci-trace-meson.h"
 #include "xhci-debugfs-meson.h"
 #include "xhci-dbgcap-meson.h"

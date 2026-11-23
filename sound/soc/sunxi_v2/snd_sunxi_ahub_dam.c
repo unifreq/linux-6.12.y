@@ -506,7 +506,7 @@ static struct platform_driver sunxi_ahub_dam_driver = {
 	.remove	= sunxi_ahub_dam_dev_remove,
 };
 
-int __init sunxi_ahub_dam_dev_init(void)
+static int __init sunxi_ahub_dam_dev_init(void)
 {
 	int ret;
 
@@ -519,7 +519,7 @@ int __init sunxi_ahub_dam_dev_init(void)
 	return ret;
 }
 
-void __exit sunxi_ahub_dam_dev_exit(void)
+static void __exit sunxi_ahub_dam_dev_exit(void)
 {
 	platform_driver_unregister(&sunxi_ahub_dam_driver);
 }

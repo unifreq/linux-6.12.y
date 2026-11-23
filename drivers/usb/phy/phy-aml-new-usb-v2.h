@@ -9,6 +9,11 @@
 #define	phy_to_amlusb(x)	container_of((x), struct amlogic_usb_v2, phy)
 #define TUNING_DISCONNECT_THRESHOLD 0x3f
 
+void aml_new_usb3_get_phy(struct amlogic_usb_v2 *phy);
+void aml_new_usb_v2_init(void);
+void set_usb_phy_host_tuning(int port, int default_val);
+void set_usb_phy_device_tuning(int port, int default_val);
+
 int amlogic_new_usbphy_reset_v2(struct amlogic_usb_v2 *phy);
 int amlogic_new_usbphy_reset_phycfg_v2
 	(struct amlogic_usb_v2 *phy, int cnt);

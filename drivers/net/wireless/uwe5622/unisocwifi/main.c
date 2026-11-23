@@ -1090,7 +1090,7 @@ static struct notifier_block sprdwl_inet6addr_cb = {
 };
 
 #if IS_ENABLED(CONFIG_SUNXI_ADDR_MGT)
-extern int get_custom_mac_address(int fmt, char *name, char *addr);
+#include <linux/sunxi_addr.h>
 
 static void sprdwl_get_sunxi_mac(u8 *addr)
 {

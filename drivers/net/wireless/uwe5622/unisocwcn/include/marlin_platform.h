@@ -123,6 +123,24 @@ int marlin_reset_callback_register(u32 subsys, struct notifier_block *nb);
 void marlin_reset_callback_unregister(u32 subsys, struct notifier_block *nb);
 int marlin_reset_notify_call(enum marlin_cp2_status sts);
 
+#ifdef CONFIG_AML_BOARD
+#include <linux/amlogic/aml_gpio_consumer.h>
+
+void extern_wifi_set_enable(int is_on);
+void extern_bt_set_enable(int is_on);
+int wifi_irq_trigger_level(void);
+int wifi_irq_num(void);
+void sdio_set_max_reqsz(unsigned int size);
+void sdio_clk_always_on(int on);
+void sdio_reinit(void);
+unsigned char get_meson_cpu_version(int level);
+int get_cpu_type_from_media(void);
+void crg_gadget_exit(void);
+int crg_gadget_init(void);
+int crg_otg_write_UDC(const char *udc_name);
+int aml_dwc3_init(void);
+#endif
+
 /* -Wmissing-prototypes: cross-file declarations */
 int chip_power_on(int subsys);
 

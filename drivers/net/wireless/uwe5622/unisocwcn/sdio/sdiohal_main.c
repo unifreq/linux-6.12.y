@@ -45,15 +45,6 @@
 #include "mach/hardware.h"
 #endif
 
-#ifdef CONFIG_AML_BOARD
-#include <linux/amlogic/aml_gpio_consumer.h>
-
-extern int wifi_irq_num(void);
-extern int wifi_irq_trigger_level(void);
-extern void sdio_reinit(void);
-extern void sdio_clk_always_on(int on);
-extern void sdio_set_max_reqsz(unsigned int size);
-#endif
 
 //#ifdef CONFIG_RK_BOARD
 //extern int rockchip_wifi_set_carddetect(int val);
@@ -185,7 +176,7 @@ static void sdiohal_abort(void)
 
 	sdiohal_info("sdiohal_abort\n");
 
-#ifdef CONFIG_ARCH_SUNXI
+#if defined(CONFIG_AW_BOARD) && !defined(CONFIG_AML_BOARD)
 	sprdwcn_bus_set_carddump_status(true);
 	return;
 #endif
@@ -1531,6 +1522,7 @@ static void sdiohal_irq_handler_data(struct sdio_func *func)
 	sdiohal_rx_up();
 }
 
+#ifdef CONFIG_PM_SLEEP
 static int sdiohal_suspend(struct device *dev)
 {
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
@@ -1731,6 +1723,7 @@ static int sdiohal_resume(struct device *dev)
 
 	return 0;
 }
+#endif
 
 int sdiohal_runtime_get(void)
 {
@@ -2351,6 +2344,8 @@ int sdiohal_init(void)
 	}
 	p_data->printlog_txchn = SDIO_CHANNEL_NUM;
 	p_data->printlog_rxchn = SDIO_CHANNEL_NUM;
+	init_completion(&p_data->scan_done);
+	init_completion(&p_data->remove_done);
 	/* card not ready */
 	atomic_set(&p_data->xmit_cnt, SDIOHAL_REMOVE_CARD_VAL);
 	sdiohal_data = p_data;

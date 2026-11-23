@@ -21,6 +21,7 @@
 #include <linux/usb/of.h>
 
 #include "xhci-meson.h"
+#include "../usb_main.h"
 #include "xhci-plat-meson.h"
 #include "xhci-mvebu.h"
 #include "xhci-rcar.h"

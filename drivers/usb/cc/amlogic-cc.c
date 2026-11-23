@@ -14,6 +14,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/delay.h>
 #include <linux/amlogic/usb-v2.h>
+#include "../usb_main.h"
 #include <linux/workqueue.h>
 #include "amlogic-cc.h"
 

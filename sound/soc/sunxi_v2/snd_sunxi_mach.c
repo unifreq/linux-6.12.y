@@ -453,7 +453,7 @@ static struct platform_driver sunxi_soundcard_machine_driver = {
 	.remove	= asoc_simple_remove,
 };
 
-int __init sunxi_soundcard_machine_dev_init(void)
+static int __init sunxi_soundcard_machine_dev_init(void)
 {
 	int ret;
 
@@ -466,7 +466,7 @@ int __init sunxi_soundcard_machine_dev_init(void)
 	return ret;
 }
 
-void __exit sunxi_soundcard_machine_dev_exit(void)
+static void __exit sunxi_soundcard_machine_dev_exit(void)
 {
 	platform_driver_unregister(&sunxi_soundcard_machine_driver);
 }

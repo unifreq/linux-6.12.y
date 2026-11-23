@@ -1555,7 +1555,7 @@ static inline unsigned short from32to16(unsigned int x)
 	return x;
 }
 
-unsigned int uwe_do_csum(const unsigned char *buff, int len)
+static unsigned int uwe_do_csum(const unsigned char *buff, int len)
 {
 	int odd;
 	unsigned int result = 0;

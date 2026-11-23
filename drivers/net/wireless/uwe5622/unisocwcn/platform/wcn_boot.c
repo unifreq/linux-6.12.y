@@ -62,15 +62,6 @@ unsigned long __stack_chk_guard __read_mostly;
 EXPORT_SYMBOL(__stack_chk_guard);
 #endif
 
-#ifdef CONFIG_AML_BOARD
-#include <linux/amlogic/aml_gpio_consumer.h>
-
-extern int wifi_irq_trigger_level(void);
-#ifdef CONFIG_WCN_RESET_PIN_CONNECTED
-extern void extern_bt_set_enable(int is_on);
-#endif
-extern void extern_wifi_set_enable(int is_on);
-#endif
 
 #ifdef CONFIG_HISI_BOARD
 #include "vendor/hisilicon/hi_drv_gpio.h"

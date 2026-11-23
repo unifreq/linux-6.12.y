@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/regmap.h>
+#include <marlin_platform.h>
 
 void extern_wifi_set_enable(int is_on)
 {
@@ -45,7 +46,7 @@ EXPORT_SYMBOL_GPL(extern_wifi_set_enable);
 void extern_bt_set_enable(int is_on) { }
 EXPORT_SYMBOL_GPL(extern_bt_set_enable);
 
-void wifi_irq_trigger_level(int level) { }
+int wifi_irq_trigger_level(void) { return GPIO_IRQ_HIGH; }
 EXPORT_SYMBOL_GPL(wifi_irq_trigger_level);
 
 int wifi_irq_num(void) { return 0; }
@@ -76,11 +77,11 @@ int get_cpu_type_from_media(void)
 EXPORT_SYMBOL_GPL(get_cpu_type_from_media);
 
 /* USB gadget-side hooks (crg_udc removed from build; host mode only) */
-void crg_gadget_init(void) { }
+int crg_gadget_init(void) { return 0; }
 EXPORT_SYMBOL_GPL(crg_gadget_init);
 void crg_gadget_exit(void) { }
 EXPORT_SYMBOL_GPL(crg_gadget_exit);
-void crg_otg_write_UDC(int mode) { }
+int crg_otg_write_UDC(const char *udc_name) { return 0; }
 EXPORT_SYMBOL_GPL(crg_otg_write_UDC);
 
 /* usb3 phy helper (phy-aml-new-usb3-com.c platform hook) */

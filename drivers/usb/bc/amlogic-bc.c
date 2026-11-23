@@ -14,6 +14,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/delay.h>
 #include <linux/amlogic/usb-v2.h>
+#include "../usb_main.h"
 #include "amlogic-bc.h"
 
 struct bc_dev	*g_bc_dev;
