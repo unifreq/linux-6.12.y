@@ -1,3 +1,5 @@
+#include <linux/string.h>
+#include <linux/of.h>
 #include <wcn_bus.h>
 
 #include "bus_common.h"
@@ -139,7 +141,10 @@ static void sdiohal_cp_sleep_wakeup(enum slp_subsys subsys)
 {
 #ifdef CONFIG_WCN_SLP
 #ifdef CONFIG_CPLOG_DEBUG
-	sdiohal_info("%s entry\n", __func__);
+	if (of_machine_is_compatible("amlogic,gxlx4-s905l4-w150d"))
+		pr_debug("sdiohal:%s entry\n", __func__);
+	else
+		sdiohal_info("%s entry\n", __func__);
 #endif
 	slp_mgr_drv_sleep(subsys, false);
 	slp_mgr_wakeup(subsys);
