@@ -65,7 +65,7 @@ MODULE_PARM_DESC(bdaddr,
 	"Bluetooth device address XX:XX:XX:XX:XX:XX (default: Allwinner addr_mgt \"bt\" address, else the one in bt_configure_pskey.ini)");
 
 #if IS_ENABLED(CONFIG_SUNXI_ADDR_MGT)
-extern int get_custom_mac_address(int fmt, char *name, char *addr);
+#include <linux/sunxi_addr.h>
 #endif
 
 struct ini_entry {
