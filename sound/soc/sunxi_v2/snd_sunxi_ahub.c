@@ -1065,7 +1065,7 @@ static int sunxi_ahub_resume(struct snd_soc_component *component)
        return 0;
 }
 
-int sunxi_loopback_debug_get(struct snd_kcontrol *kcontrol,
+static int sunxi_loopback_debug_get(struct snd_kcontrol *kcontrol,
                             struct snd_ctl_elem_value *ucontrol)
 {
        unsigned int reg_val;
@@ -1080,7 +1080,7 @@ int sunxi_loopback_debug_get(struct snd_kcontrol *kcontrol,
        return 0;
 }
 
-int sunxi_loopback_debug_set(struct snd_kcontrol *kcontrol,
+static int sunxi_loopback_debug_set(struct snd_kcontrol *kcontrol,
                             struct snd_ctl_elem_value *ucontrol)
 {
        struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
@@ -1449,7 +1449,7 @@ static struct platform_driver sunxi_ahub_driver = {
        .remove = sunxi_ahub_dev_remove,
 };
 
-int __init sunxi_ahub_dev_init(void)
+static int __init sunxi_ahub_dev_init(void)
 {
        int ret;
 
@@ -1462,7 +1462,7 @@ int __init sunxi_ahub_dev_init(void)
        return ret;
 }
 
-void __exit sunxi_ahub_dev_exit(void)
+static void __exit sunxi_ahub_dev_exit(void)
 {
        platform_driver_unregister(&sunxi_ahub_driver);
 }
