@@ -1309,6 +1309,7 @@ sprdwl_cfg80211_change_station(struct wiphy *wiphy,
 #endif
 
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
 static bool sprdwl_vif_is_ap(struct sprdwl_vif *vif)
 {
 	return vif->mode == SPRDWL_MODE_AP || vif->mode == SPRDWL_MODE_P2P_GO;
@@ -1349,6 +1350,7 @@ static void sprdwl_ap_fill_sinfo(struct sprdwl_peer_entry *peer,
 		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_CONNECTED_TIME);
 	}
 }
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
 static int sprdwl_cfg80211_get_station(struct wiphy *wiphy,
