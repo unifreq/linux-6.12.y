@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: GPL-2.0+
+
+#include "meson-gxlx4-w152d.dts"
+
+&{/} {
+	aliases {
+		mmc0 = &emmc;
+		mmc1 = &{/soc/mmc@fe088000};
+	};
+
+	emmc_vmmc: regulator-emmc-vmmc {
+		compatible = "regulator-fixed";
+		regulator-name = "emmc-vmmc-probe";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+};
+
+&{/soc} {
+	emmc: mmc@fe08c000 {
+		compatible = "amlogic,meson-axg-mmc";
+		reg = <0 0xfe08c000 0 0x1000>;
+		interrupt-parent = <&gic>;
+		interrupts = <GIC_SPI 178 IRQ_TYPE_EDGE_RISING>;
+		/* Reuse the clocks and pinmux left active by the vendor bootloader. */
+		clocks = <&sys_clk>, <&xtal>, <&gp0_pll>;
+		clock-names = "core", "clkin0", "clkin1";
+		vmmc-supply = <&emmc_vmmc>;
+		pinctrl-names = "default";
+		pinctrl-0 = <>;
+		bus-width = <8>;
+		max-frequency = <4000000>;
+		no-sd;
+		no-sdio;
+		non-removable;
+	};
+};
