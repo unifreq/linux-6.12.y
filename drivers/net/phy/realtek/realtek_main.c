@@ -10,9 +10,11 @@
 #include <linux/bitops.h>
 #include <linux/of.h>
 #include <linux/phy.h>
+#include <linux/netdevice.h>
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
+#include <linux/string_choices.h>
 
 #define RTL821x_PHYSR				0x11
 #define RTL821x_PHYSR_DUPLEX			BIT(13)
@@ -28,12 +30,36 @@
 #define RTL821x_EXT_PAGE_SELECT			0x1e
 #define RTL821x_PAGE_SELECT			0x1f
 
-#define RTL8211F_LCR				0x10
-#define RTL8211F_EEELCR				0x11
+/* RTL8211F PHY configuration */
+#define RTL8211F_PHYCR_PAGE			0xa43
 #define RTL8211F_PHYCR1				0x18
 #define RTL8211F_PHYCR2				0x19
+#define RTL8211F_CLKOUT_EN			BIT(0)
+#define RTL8211F_PHYCR2_PHY_EEE_ENABLE		BIT(5)
+
+#define RTL8211F_INSR_PAGE			0xa43
 #define RTL8211F_INSR				0x1d
 
+/* RTL8211F WOL interrupt configuration */
+#define RTL8211F_INTBCR_PAGE			0xd40
+#define RTL8211F_INTBCR				0x16
+#define RTL8211F_INTBCR_INTB_PMEB		BIT(5)
+
+/* RTL8211F WOL settings */
+#define RTL8211F_WOL_SETTINGS_PAGE		0xd8a
+#define RTL8211F_WOL_SETTINGS_EVENTS		16
+#define RTL8211F_WOL_EVENT_MAGIC		BIT(12)
+#define RTL8211F_WOL_SETTINGS_STATUS		17
+#define RTL8211F_WOL_STATUS_RESET		(BIT(15) | 0x1fff)
+
+/* RTL8211F Unique phyiscal and multicast address (WOL) */
+#define RTL8211F_PHYSICAL_ADDR_PAGE		0xd8c
+#define RTL8211F_PHYSICAL_ADDR_WORD0		16
+#define RTL8211F_PHYSICAL_ADDR_WORD1		17
+#define RTL8211F_PHYSICAL_ADDR_WORD2		18
+
+/* RTL8211F LED configuration */
+#define RTL8211F_LEDCR_PAGE			0xd04
 #define RTL8211F_LEDCR				0x10
 #define RTL8211F_LEDCR_MODE			BIT(15)
 #define RTL8211F_LEDCR_ACT_TXRX			BIT(4)
@@ -43,7 +69,17 @@
 #define RTL8211F_LEDCR_MASK			GENMASK(4, 0)
 #define RTL8211F_LEDCR_SHIFT			5
 
+/* RTL8211F LED direct configuration (Rockchip vendor extension) */
+#define RTL8211F_LCR				0x10
+#define RTL8211F_EEELCR				0x11
+
+/* RTL8211F RGMII configuration */
+#define RTL8211F_RGMII_PAGE			0xd08
+
+#define RTL8211F_TXCR				0x11
 #define RTL8211F_TX_DELAY			BIT(8)
+
+#define RTL8211F_RXCR				0x15
 #define RTL8211F_RX_DELAY			BIT(3)
 
 #define RTL8211F_ALDPS_PLL_OFF			BIT(1)
@@ -53,8 +89,6 @@
 #define RTL8211E_CTRL_DELAY			BIT(13)
 #define RTL8211E_TX_DELAY			BIT(12)
 #define RTL8211E_RX_DELAY			BIT(11)
-
-#define RTL8211F_CLKOUT_EN			BIT(0)
 
 #define RTL8201F_ISR				0x1e
 #define RTL8201F_ISR_ANERR			BIT(15)
@@ -110,7 +144,157 @@ struct rtl821x_priv {
 	u16 phycr2;
 	bool has_phycr2;
 	struct clk *clk;
+	u32 saved_wolopts;
+	/* LED configuration from device tree */
+	bool led_dts_configured[RTL8211F_LED_COUNT];
+	u16 led_reg_val;
+	bool led_data_cfg;
+	u16 led_data;
 };
+
+/* RTL8211F LED trigger mapping */
+static const struct {
+	const char *name;
+	unsigned long rule_bit;
+} rtl8211f_led_trigger_map[] = {
+	{ "activity", BIT(TRIGGER_NETDEV_RX) | BIT(TRIGGER_NETDEV_TX) },
+	{ "link-10",  BIT(TRIGGER_NETDEV_LINK_10) },
+	{ "link-100", BIT(TRIGGER_NETDEV_LINK_100) },
+	{ "link-1000", BIT(TRIGGER_NETDEV_LINK_1000) },
+};
+
+static const char *rtl8211f_led_propnames[] = {
+	"realtek,led0-triggers",
+	"realtek,led1-triggers",
+	"realtek,led2-triggers",
+};
+
+static bool rtl8211f_led_dts_managed(struct rtl821x_priv *priv, u8 index)
+{
+	if (!priv)
+		return false;
+
+	return index < RTL8211F_LED_COUNT && priv->led_dts_configured[index];
+}
+
+/*
+ * Tell phylib not to register a generic LED class device for LEDs that are
+ * fully described by the "realtek,ledX-triggers" device tree properties.
+ * Otherwise the netdev LED trigger would take over the LED and fight with
+ * the configuration programmed here.
+ */
+static bool rtl8211f_led_dt_managed(struct phy_device *phydev, u8 index)
+{
+	return rtl8211f_led_dts_managed(phydev->priv, index);
+}
+
+/* Convert a rules bitmap to the hardware bits for a single LED (5-bit field) */
+static u16 rtl8211f_rules_to_led_bits(unsigned long rules)
+{
+	u16 val = 0;
+
+	if (test_bit(TRIGGER_NETDEV_RX, &rules) &&
+	    test_bit(TRIGGER_NETDEV_TX, &rules))
+		val |= RTL8211F_LEDCR_ACT_TXRX;
+
+	if (test_bit(TRIGGER_NETDEV_LINK_10, &rules))
+		val |= RTL8211F_LEDCR_LINK_10;
+
+	if (test_bit(TRIGGER_NETDEV_LINK_100, &rules))
+		val |= RTL8211F_LEDCR_LINK_100;
+
+	if (test_bit(TRIGGER_NETDEV_LINK_1000, &rules))
+		val |= RTL8211F_LEDCR_LINK_1000;
+
+	return val;
+}
+
+/* Parse triggers for a single LED and accumulate into led_reg_val */
+static void rtl8211f_parse_led_triggers(struct phy_device *phydev, u8 led_index,
+				       const char *propname)
+{
+	struct device_node *np = phydev->mdio.dev.of_node;
+	struct rtl821x_priv *priv = phydev->priv;
+	struct property *prop;
+	const char *s;
+	int i;
+	unsigned long rules = 0;
+
+	of_property_for_each_string(np, propname, prop, s) {
+		for (i = 0; i < ARRAY_SIZE(rtl8211f_led_trigger_map); i++) {
+			if (!strcmp(s, rtl8211f_led_trigger_map[i].name)) {
+				rules |= rtl8211f_led_trigger_map[i].rule_bit;
+				break;
+			}
+		}
+		if (i == ARRAY_SIZE(rtl8211f_led_trigger_map))
+			phydev_warn(phydev, "Unknown LED trigger '%s' for LED%d\n",
+				    s, led_index);
+	}
+
+	if (rules) {
+		priv->led_reg_val |= (rtl8211f_rules_to_led_bits(rules) <<
+				      (RTL8211F_LEDCR_SHIFT * led_index));
+		priv->led_dts_configured[led_index] = true;
+	}
+}
+
+/*
+ * Apply LED configuration from device tree.
+ *
+ * Two DT bindings are supported, in order of precedence:
+ *   1. "realtek,ledX-triggers" - semantic per-LED trigger lists (preferred)
+ *   2. "realtek,led-data"      - raw 16-bit LEDCR value (legacy Rockchip)
+ */
+static void rtl8211f_apply_led_config(struct phy_device *phydev)
+{
+	struct rtl821x_priv *priv = phydev->priv;
+	u16 reg;
+	int ret;
+
+	if (rtl8211f_led_dts_managed(priv, 0) ||
+	    rtl8211f_led_dts_managed(priv, 1) ||
+	    rtl8211f_led_dts_managed(priv, 2)) {
+		reg = priv->led_reg_val | RTL8211F_LEDCR_MODE;
+		ret = phy_write_paged(phydev, RTL8211F_LEDCR_PAGE,
+				      RTL8211F_LEDCR, reg);
+		if (ret < 0) {
+			phydev_err(phydev, "Failed to write LEDCR: %d\n", ret);
+			return;
+		}
+
+		ret = phy_write_paged(phydev, RTL8211F_LEDCR_PAGE,
+				      RTL8211F_EEELCR, 0);
+		if (ret < 0) {
+			phydev_err(phydev, "Failed to clear EEELCR: %d\n", ret);
+			return;
+		}
+
+		phydev_dbg(phydev, "Applied LED config: 0x%04x\n", reg);
+		return;
+	}
+
+	/* Legacy fallback: raw LEDCR value from "realtek,led-data" */
+	if (priv->led_data_cfg) {
+		ret = phy_write_paged(phydev, RTL8211F_LEDCR_PAGE,
+				      RTL8211F_LCR, priv->led_data);
+		if (ret < 0) {
+			phydev_err(phydev, "Failed to write LEDCR (led-data): %d\n",
+				   ret);
+			return;
+		}
+
+		ret = phy_write_paged(phydev, RTL8211F_LEDCR_PAGE,
+				      RTL8211F_EEELCR, 0);
+		if (ret < 0) {
+			phydev_err(phydev, "Failed to clear EEELCR: %d\n", ret);
+			return;
+		}
+
+		phydev_dbg(phydev, "Applied LED config (led-data): 0x%04x\n",
+			   priv->led_data);
+	}
+}
 
 static int rtl821x_read_page(struct phy_device *phydev)
 {
@@ -127,18 +311,32 @@ static int rtl821x_probe(struct phy_device *phydev)
 	struct device *dev = &phydev->mdio.dev;
 	struct rtl821x_priv *priv;
 	u32 phy_id = phydev->drv->phy_id;
+	u32 led_data;
 	int ret;
+	int i;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
+
+	phydev->priv = priv;
+
+	/* Parse semantic LED triggers from device tree (preferred) */
+	for (i = 0; i < ARRAY_SIZE(rtl8211f_led_propnames); i++)
+		rtl8211f_parse_led_triggers(phydev, i, rtl8211f_led_propnames[i]);
+
+	/* Legacy Rockchip binding: raw LEDCR value */
+	if (!of_property_read_u32(dev->of_node, "realtek,led-data", &led_data)) {
+		priv->led_data = (u16)led_data;
+		priv->led_data_cfg = true;
+	}
 
 	priv->clk = devm_clk_get_optional_enabled(dev, NULL);
 	if (IS_ERR(priv->clk))
 		return dev_err_probe(dev, PTR_ERR(priv->clk),
 				     "failed to get phy clock\n");
 
-	ret = phy_read_paged(phydev, 0xa43, RTL8211F_PHYCR1);
+	ret = phy_read_paged(phydev, RTL8211F_PHYCR_PAGE, RTL8211F_PHYCR1);
 	if (ret < 0)
 		return ret;
 
@@ -148,7 +346,7 @@ static int rtl821x_probe(struct phy_device *phydev)
 
 	priv->has_phycr2 = !(phy_id == RTL_8211FVD_PHYID);
 	if (priv->has_phycr2) {
-		ret = phy_read_paged(phydev, 0xa43, RTL8211F_PHYCR2);
+		ret = phy_read_paged(phydev, RTL8211F_PHYCR_PAGE, RTL8211F_PHYCR2);
 		if (ret < 0)
 			return ret;
 
@@ -156,8 +354,6 @@ static int rtl821x_probe(struct phy_device *phydev)
 		if (of_property_read_bool(dev->of_node, "realtek,clkout-disable"))
 			priv->phycr2 &= ~RTL8211F_CLKOUT_EN;
 	}
-
-	phydev->priv = priv;
 
 	return 0;
 }
@@ -184,7 +380,7 @@ static int rtl8211f_ack_interrupt(struct phy_device *phydev)
 {
 	int err;
 
-	err = phy_read_paged(phydev, 0xa43, RTL8211F_INSR);
+	err = phy_read_paged(phydev, RTL8211F_INSR_PAGE, RTL8211F_INSR);
 
 	return (err < 0) ? err : 0;
 }
@@ -327,7 +523,7 @@ static irqreturn_t rtl8211f_handle_interrupt(struct phy_device *phydev)
 {
 	int irq_status;
 
-	irq_status = phy_read_paged(phydev, 0xa43, RTL8211F_INSR);
+	irq_status = phy_read_paged(phydev, RTL8211F_INSR_PAGE, RTL8211F_INSR);
 	if (irq_status < 0) {
 		phy_error(phydev);
 		return IRQ_NONE;
@@ -339,6 +535,53 @@ static irqreturn_t rtl8211f_handle_interrupt(struct phy_device *phydev)
 	phy_trigger_machine(phydev);
 
 	return IRQ_HANDLED;
+}
+
+static void rtl8211f_get_wol(struct phy_device *dev, struct ethtool_wolinfo *wol)
+{
+	wol->supported = WAKE_MAGIC;
+	if (phy_read_paged(dev, RTL8211F_WOL_SETTINGS_PAGE, RTL8211F_WOL_SETTINGS_EVENTS)
+	    & RTL8211F_WOL_EVENT_MAGIC)
+		wol->wolopts = WAKE_MAGIC;
+}
+
+static int rtl8211f_set_wol(struct phy_device *dev, struct ethtool_wolinfo *wol)
+{
+	const u8 *mac_addr = dev->attached_dev->dev_addr;
+	int oldpage;
+
+	oldpage = phy_save_page(dev);
+	if (oldpage < 0)
+		goto err;
+
+	if (wol->wolopts & WAKE_MAGIC) {
+		/* Store the device address for the magic packet */
+		rtl821x_write_page(dev, RTL8211F_PHYSICAL_ADDR_PAGE);
+		__phy_write(dev, RTL8211F_PHYSICAL_ADDR_WORD0, mac_addr[1] << 8 | (mac_addr[0]));
+		__phy_write(dev, RTL8211F_PHYSICAL_ADDR_WORD1, mac_addr[3] << 8 | (mac_addr[2]));
+		__phy_write(dev, RTL8211F_PHYSICAL_ADDR_WORD2, mac_addr[5] << 8 | (mac_addr[4]));
+
+		/* Enable magic packet matching and reset WOL status */
+		rtl821x_write_page(dev, RTL8211F_WOL_SETTINGS_PAGE);
+		__phy_write(dev, RTL8211F_WOL_SETTINGS_EVENTS, RTL8211F_WOL_EVENT_MAGIC);
+		__phy_write(dev, RTL8211F_WOL_SETTINGS_STATUS, RTL8211F_WOL_STATUS_RESET);
+
+		/* Enable the WOL interrupt */
+		rtl821x_write_page(dev, RTL8211F_INTBCR_PAGE);
+		__phy_set_bits(dev, RTL8211F_INTBCR, RTL8211F_INTBCR_INTB_PMEB);
+	} else {
+		/* Disable the WOL interrupt */
+		rtl821x_write_page(dev, RTL8211F_INTBCR_PAGE);
+		__phy_clear_bits(dev, RTL8211F_INTBCR, RTL8211F_INTBCR_INTB_PMEB);
+
+		/* Disable magic packet matching and reset WOL status */
+		rtl821x_write_page(dev, RTL8211F_WOL_SETTINGS_PAGE);
+		__phy_write(dev, RTL8211F_WOL_SETTINGS_EVENTS, 0);
+		__phy_write(dev, RTL8211F_WOL_SETTINGS_STATUS, RTL8211F_WOL_STATUS_RESET);
+	}
+
+err:
+	return phy_restore_page(dev, oldpage, 0);
 }
 
 static int rtl8211_config_aneg(struct phy_device *phydev)
@@ -370,22 +613,10 @@ static int rtl8211c_config_init(struct phy_device *phydev)
 			    CTL1000_ENABLE_MASTER | CTL1000_AS_MASTER);
 }
 
-static int rtl8211f_config_init(struct phy_device *phydev)
+static int rtl8211f_config_rgmii_delay(struct phy_device *phydev)
 {
-	struct rtl821x_priv *priv = phydev->priv;
-	struct device *dev = &phydev->mdio.dev;
 	u16 val_txdly, val_rxdly;
-	u32 led_data;
 	int ret;
-
-	ret = phy_modify_paged_changed(phydev, 0xa43, RTL8211F_PHYCR1,
-				       RTL8211F_ALDPS_PLL_OFF | RTL8211F_ALDPS_ENABLE | RTL8211F_ALDPS_XTAL_OFF,
-				       priv->phycr1);
-	if (ret < 0) {
-		dev_err(dev, "aldps mode  configuration failed: %pe\n",
-			ERR_PTR(ret));
-		return ret;
-	}
 
 	switch (phydev->interface) {
 	case PHY_INTERFACE_MODE_RGMII:
@@ -412,58 +643,84 @@ static int rtl8211f_config_init(struct phy_device *phydev)
 		return 0;
 	}
 
-	ret = phy_modify_paged_changed(phydev, 0xd08, 0x11, RTL8211F_TX_DELAY,
+	ret = phy_modify_paged_changed(phydev, RTL8211F_RGMII_PAGE,
+				       RTL8211F_TXCR, RTL8211F_TX_DELAY,
 				       val_txdly);
 	if (ret < 0) {
-		dev_err(dev, "Failed to update the TX delay register\n");
+		phydev_err(phydev, "Failed to update the TX delay register: %pe\n",
+			   ERR_PTR(ret));
 		return ret;
 	} else if (ret) {
-		dev_dbg(dev,
-			"%s 2ns TX delay (and changing the value from pin-strapping RXD1 or the bootloader)\n",
-			val_txdly ? "Enabling" : "Disabling");
+		phydev_dbg(phydev,
+			   "%s 2ns TX delay (and changing the value from pin-strapping RXD1 or the bootloader)\n",
+			   str_enable_disable(val_txdly));
 	} else {
-		dev_dbg(dev,
-			"2ns TX delay was already %s (by pin-strapping RXD1 or bootloader configuration)\n",
-			val_txdly ? "enabled" : "disabled");
+		phydev_dbg(phydev,
+			   "2ns TX delay was already %s (by pin-strapping RXD1 or bootloader configuration)\n",
+			   str_enabled_disabled(val_txdly));
 	}
 
-	ret = phy_modify_paged_changed(phydev, 0xd08, 0x15, RTL8211F_RX_DELAY,
+	ret = phy_modify_paged_changed(phydev, RTL8211F_RGMII_PAGE,
+				       RTL8211F_RXCR, RTL8211F_RX_DELAY,
 				       val_rxdly);
 	if (ret < 0) {
-		dev_err(dev, "Failed to update the RX delay register\n");
+		phydev_err(phydev, "Failed to update the RX delay register: %pe\n",
+			   ERR_PTR(ret));
 		return ret;
 	} else if (ret) {
-		dev_dbg(dev,
-			"%s 2ns RX delay (and changing the value from pin-strapping RXD0 or the bootloader)\n",
-			val_rxdly ? "Enabling" : "Disabling");
+		phydev_dbg(phydev,
+			   "%s 2ns RX delay (and changing the value from pin-strapping RXD0 or the bootloader)\n",
+			   str_enable_disable(val_rxdly));
 	} else {
-		dev_dbg(dev,
-			"2ns RX delay was already %s (by pin-strapping RXD0 or bootloader configuration)\n",
-			val_rxdly ? "enabled" : "disabled");
-	}
-
-	ret = of_property_read_u32(dev->of_node,
-				   "realtek,led-data", &led_data);
-	if (!ret) {
-		phy_write(phydev, RTL821x_PAGE_SELECT, 0xd04);
-		phy_write(phydev, RTL8211F_LCR, led_data);
-		phy_write(phydev, RTL8211F_EEELCR, 0x0);
-		phy_write(phydev, RTL821x_PAGE_SELECT, 0x0);
-	}
-
-	if (priv->has_phycr2) {
-		ret = phy_modify_paged(phydev, 0xa43, RTL8211F_PHYCR2,
-				       RTL8211F_CLKOUT_EN, priv->phycr2);
-		if (ret < 0) {
-			dev_err(dev, "clkout configuration failed: %pe\n",
-				ERR_PTR(ret));
-			return ret;
-		}
-
-		return genphy_soft_reset(phydev);
+		phydev_dbg(phydev,
+			   "2ns RX delay was already %s (by pin-strapping RXD0 or bootloader configuration)\n",
+			   str_enabled_disabled(val_rxdly));
 	}
 
 	return 0;
+}
+
+static int rtl8211f_config_init(struct phy_device *phydev)
+{
+	struct rtl821x_priv *priv = phydev->priv;
+	struct device *dev = &phydev->mdio.dev;
+	int ret;
+
+	ret = phy_modify_paged_changed(phydev, RTL8211F_PHYCR_PAGE, RTL8211F_PHYCR1,
+				       RTL8211F_ALDPS_PLL_OFF | RTL8211F_ALDPS_ENABLE | RTL8211F_ALDPS_XTAL_OFF,
+				       priv->phycr1);
+	if (ret < 0) {
+		dev_err(dev, "aldps mode  configuration failed: %pe\n",
+			ERR_PTR(ret));
+		return ret;
+	}
+
+	ret = rtl8211f_config_rgmii_delay(phydev);
+	if (ret)
+		return ret;
+
+	/* Apply LED configuration from DT (ledX-triggers or led-data) */
+	rtl8211f_apply_led_config(phydev);
+
+	if (!priv->has_phycr2)
+		return 0;
+
+	/* Disable PHY-mode EEE so LPI is passed to the MAC */
+	ret = phy_modify_paged(phydev, RTL8211F_PHYCR_PAGE, RTL8211F_PHYCR2,
+			       RTL8211F_PHYCR2_PHY_EEE_ENABLE, 0);
+	if (ret)
+		return ret;
+
+	ret = phy_modify_paged(phydev, RTL8211F_PHYCR_PAGE,
+			       RTL8211F_PHYCR2, RTL8211F_CLKOUT_EN,
+			       priv->phycr2);
+	if (ret < 0) {
+		dev_err(dev, "clkout configuration failed: %pe\n",
+			ERR_PTR(ret));
+		return ret;
+	}
+
+	return genphy_soft_reset(phydev);
 }
 
 static int rtl821x_suspend(struct phy_device *phydev)
@@ -497,7 +754,10 @@ static int rtl821x_resume(struct phy_device *phydev)
 
 	msleep(20);
 
-	return 0;
+	/* Restore LED configuration lost across suspend/resume */
+	rtl8211f_apply_led_config(phydev);
+
+	return rtl8211f_config_rgmii_delay(phydev);
 }
 
 static int rtl8211f_led_hw_is_supported(struct phy_device *phydev, u8 index,
@@ -523,6 +783,14 @@ static int rtl8211f_led_hw_is_supported(struct phy_device *phydev, u8 index,
 
 	if (index >= RTL8211F_LED_COUNT)
 		return -EINVAL;
+
+	/*
+	 * LEDs fully described by "realtek,ledX-triggers" are programmed
+	 * directly by this driver; tell phylib not to manage them so the
+	 * generic netdev trigger does not fight with our configuration.
+	 */
+	if (rtl8211f_led_dt_managed(phydev, index))
+		return -EOPNOTSUPP;
 
 	/* Filter out any other unsupported triggers. */
 	if (rules & ~mask)
@@ -1353,6 +1621,8 @@ static struct phy_driver realtek_drvs[] = {
 		.read_status	= rtlgen_read_status,
 		.config_intr	= &rtl8211f_config_intr,
 		.handle_interrupt = rtl8211f_handle_interrupt,
+		.set_wol	= rtl8211f_set_wol,
+		.get_wol	= rtl8211f_get_wol,
 		.suspend	= rtl821x_suspend,
 		.resume		= rtl821x_resume,
 		.read_page	= rtl821x_read_page,
